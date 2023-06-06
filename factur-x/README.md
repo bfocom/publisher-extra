@@ -1,4 +1,4 @@
-= XSLT to convert CII XML to HTML, and from there to Factur-X
+# XSLT to convert CII XML to HTML, and from there to Factur-X
 This folder contains a sample XSLT stylesheet and corresponding CSS
 stylesheet that can be used to convert CII XML documents to HTML,
 and from their (with BFO Publisher) to a Factur-X compliant PDF.
