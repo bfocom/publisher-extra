@@ -696,9 +696,11 @@ labels for sections also refer to that specification.
     <xsl:when test="$ctx/@schemeID = false()">ID</xsl:when>
     <xsl:when test="$ctx/@schemeID = '0002'">SIRENE</xsl:when>
     <xsl:when test="$ctx/@schemeID = '0009'">SIRET</xsl:when>
+    <xsl:when test="$ctx/@schemeID = '0021'">SWIFT</xsl:when>
     <xsl:when test="$ctx/@schemeID = '0060'">DUNS</xsl:when>
-    <xsl:when test="$ctx/@schemeID = '0088'">EAN Location</xsl:when>
+    <xsl:when test="$ctx/@schemeID = '0088'">EAN</xsl:when>
     <xsl:when test="$ctx/@schemeID = '0160'">GTIN</xsl:when>
+    <xsl:when test="$ctx/@schemeID = '0177'">ODETTE</xsl:when>
    <!-- Many more TODO -->
     <xsl:otherwise>
      <xsl:message terminate="yes">Unknown ISO6523 code <xsl:value-of select="$ctx/@schemeID"/></xsl:message>
