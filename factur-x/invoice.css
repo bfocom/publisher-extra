@@ -1,0 +1,246 @@
+/*
+
+This document is an XSLT stylesheet which can be applied to a
+CII XML document (with a root of rsm:CrossIndustryInvoice)
+to convert it to HTML.
+
+When used with BFO Publisher, the PDF generated from the
+XMP will generate paged output. When used with "screen" media,
+the output will simulate the same page size.
+
+*/
+
+:root {
+    --page-width: 210mm;
+    --page-height: 297mm;
+    --page-margin: 36px;
+    --footer-height: 30px;
+    font: 14px sans-serif;
+}
+@media print {
+    @page {
+        size: var(--page-width) var(--page-height);
+        margin: var(--page-margin);
+        margin-bottom: calc(var(--page-margin) + var(--footer-height));
+        @bottom-left {
+            font-size: 0.7em;
+            vertical-align: top;
+            line-height: var(--footer-height);
+            content: "Page " counter(page) " of " counter(pages);
+        }
+        @bottom-center {
+            font-size: 0.7em;
+            vertical-align: top;
+            line-height: var(--footer-height);
+            white-space: pre;
+            content: "Factur-X Invoice created with BFO Publisher  •  publisher.bfo.com"
+        }
+        @bottom-right {
+            vertical-align: top;
+            content: url(factur-x-basic.png);
+            height: var(--footer-height);
+        }
+    }
+    body {
+        margin: 0;
+    }
+    #logo {
+        top: 0;
+        right: 0;
+    }
+    .key {
+        -bfo-pdf-tag: "Lbl";    /* Improves PDF/UA output in BFO Publisher */
+    }
+    footer {
+        display: none;
+    }
+}
+@media screen {
+    :root {
+        margin: 0;
+        background: black;
+    }
+    body {
+        width: var(--page-width);
+        height: var(--page-height);
+        padding: var(--page-margin);
+        margin: 10px auto auto auto;
+        background: white;
+    }
+    #logo {
+        top: var(--page-margin);
+        right: var(--page-margin);
+    }
+    footer {
+        width: calc(100% - var(--page-margin)*2);
+        bottom: var(--page-margin);
+        position: absolute;
+    }
+}
+body {
+    position: relative;
+}
+footer {
+    font-size: 0.6em;
+    line-height: var(--page-margin);
+    text-align: center;
+}
+#facturx-logo {
+    position: absolute;
+    top: 0;
+    right: 0;
+    aspect-ratio: 1;
+    height: var(--footer-height);
+}
+#logo {
+    display: none;      /* Uncomment if you use one */
+    position: absolute;
+    width: auto;
+    height: 150px;
+}
+p {
+    margin: 0;
+}
+td, th {
+    text-align: left;
+    vertical-align: top;
+    padding-right: 2em;
+}
+:is(td,th):last-child {
+    padding-right: 0;
+}
+:not(.value) > span.BT {
+    display: block;
+}
+
+.company-name {
+    font-weight: bold;
+}
+.address {
+    margin-bottom: 0.4em;
+}
+.address span::after {
+    white-space:pre;
+    content: "\A";
+}
+.key:not(td .key) {
+    width: 8em;
+    display: inline-block;
+    font-weight: bold;
+}
+h2 {
+    margin: 0;
+}
+.seller {
+    border-bottom: 1px solid black;
+    padding-bottom: 1em;
+    margin-bottom: 1em;
+}
+.buyer {
+    float: left;
+    white-space: nowrap;
+    margin-bottom: 2em;
+    margin-right: 4em;
+}
+.document {
+    float: right;
+    margin-bottom: 2em;
+}
+.document p {
+    margin-bottom: 0.3em;
+}
+.document span.BT {
+    display: inline;
+}
+.payment-method {
+    border-bottom: 1px solid black;
+    margin-bottom: 2em;
+}
+.payment-method-account {
+    margin-top: 1em;
+    display: flex;
+    justify-content: space-between;
+    white-space: nowrap;
+}
+.payment-method p .key {
+    display: inline;
+    width: auto;
+    margin-right: 0.5em;
+}
+.notes {
+    columns: 2;
+}
+.note {
+    margin-bottom: 1em;
+    break-inside: avoid;
+}
+.note h3 {
+    margin: 0;
+    font-size: inherit;
+}
+.note h3::before {
+    content: "★ ";
+}
+.note p {
+    margin: 0;
+    white-space: pre-line;
+}
+table {
+    font-size: inherit;
+    width: 100%;
+    padding: 0;
+    white-space: nowrap;
+    border-collapse: collapse;
+}
+
+.items :is(.unit-price, .line-total, .line-tax) {
+    text-align: right
+}
+.items {
+    margin-bottom: 2em;
+}
+.items .item-description {
+    width: 80%;
+    white-space: pre-line;
+}
+.items :is(th, td) {
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+}
+.items .totals .total-lines :is(th, td) {
+    border-top: 1px dotted black;
+    padding-top: 1em;
+    padding-bottom: 0;
+}
+.items .totals :is(.total-charges, .total-allowances, .total-tax) *:is(th, td) {
+    padding-top: 0.1em;
+    padding-bottom: 0.1em;
+}
+.items .totals .total-net *:is(th, td) {
+    padding-bottom: 0.1em;
+}
+.items .totals .total-grand *:is(th, td) {
+    padding-top: 0.1em;
+}
+.items .totals td:first-child {
+    text-align: right;
+}
+.items thead th {
+    border-top: 5px solid black;
+    border-bottom: 5px solid black;
+}
+.items th > :last-child {
+    text-align: right;
+}
+.items .totals > tr:first-child > td {
+    border-top: 1px dotted black;
+    padding-top: 1em;
+}
+.items .totals tr.total-due td {
+    border-top: 5px solid black;
+    border-bottom: 1px solid black;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    font-size: 1.2em;
+    font-weight: bold;
+}
