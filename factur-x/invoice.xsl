@@ -17,15 +17,15 @@ labels for sections also refer to that specification.
 
 -->
 
-<xsl:stylesheet version="1.1" 
+<xsl:stylesheet version="1.0"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
   xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
   xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
   xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
-  xmlns:html="http://www.w3.org/1999/xhtml">
+  html="http://www.w3.org/1999/xhtml">
 
- <xsl:output indent="yes" method="xml" encoding="UTF-8" include-content-type="no" media-type="application/xml+xhtml" undeclare-prefixes="yes"/>
+ <xsl:output indent="yes" method="xml" encoding="UTF-8" media-type="application/xml+xhtml"/>
  <xsl:decimal-format decimal-separator="." grouping-separator="," NaN="" />
  <xsl:template match="node()|@*" />
 
@@ -44,6 +44,11 @@ labels for sections also refer to that specification.
      <xsl:text> </xsl:text>
      <xsl:value-of select="//rsm:ExchangedDocument/ram:ID/text()"/>
     </title>
+    <meta name="author">
+     <xsl:attribute name="content">
+      <xsl:value-of select="/rsm:CrossIndustryInvoice/rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeAgreement/ram:SellerTradeParty/ram:Name"/>
+     </xsl:attribute>
+    </meta>
    </head>
    <body>
 
@@ -113,7 +118,7 @@ labels for sections also refer to that specification.
       <xsl:call-template name="BG-22"/><!-- totals -->
      </tbody>
     </table>
- 
+
     <xsl:call-template name="BG-17"/><!-- payment details -->
 
     <xsl:call-template name="BG-1"/><!-- notes -->
@@ -364,7 +369,7 @@ labels for sections also refer to that specification.
        </span>
       </p>
      </xsl:if>
- 
+
      <xsl:if test="normalize-space(/rsm:CrossIndustryInvoice/rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementPaymentMeans/ram:PayeePartyCreditorFinancialAccount/ram:IBANID) != ''">
       <p>
        <span class="key">
@@ -375,7 +380,7 @@ labels for sections also refer to that specification.
        </span>
       </p>
      </xsl:if>
- 
+
      <xsl:if test="normalize-space(/rsm:CrossIndustryInvoice/rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementPaymentMeans/ram:PayeeSpecifiedCreditorFinancialInstitution)!=''">
       <p>
        <span class="key">
@@ -598,7 +603,7 @@ labels for sections also refer to that specification.
   <xsl:value-of select="format-number($ctx/ram:RateApplicablePercent, '0.0')"/>
   <xsl:text>%</xsl:text>
  </xsl:template>
-  
+
  <xsl:template name="Amount">
   <xsl:param name="ctx"/>
   <span class="currency">
@@ -606,7 +611,7 @@ labels for sections also refer to that specification.
   </span>
   <xsl:value-of select="format-number($ctx, '###,##0.00')"/>
  </xsl:template>
-  
+
  <xsl:template name="DateTimeString">
   <xsl:param name="ctx"/>
   <xsl:choose>
