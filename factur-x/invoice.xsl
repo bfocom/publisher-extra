@@ -15,7 +15,7 @@ the last few templates), just enough to run the examples
 included with the Factur-X specification. The "BT" and "BG"
 labels for sections also refer to that specification.
 
-Origin: https://github.com/bfocom/publisher-extra/main/factur-x
+Origin: https://github.com/bfocom/publisher-extra/tree/main/factur-x
 See Also: https://publisher.bfo.com/live/help/#_factur_x
 
 -->
