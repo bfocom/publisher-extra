@@ -12,3 +12,6 @@ _This is intended as a technology demonstrator!_
 We make no warranties whatsoever about the correctness of
 any the visualization, although we can guarantee that the PDF will
 meet the technical requirements of Factur-X
+
+See https://publisher.bfo.com/live/help/#_factur_x for details on how
+to use these stylesheets to convert the XML to a Factur-X PDF.
