@@ -80,7 +80,7 @@ class Publisher extends EventTarget {
     /**
      * Disconnect the WebSocket from the server and prevent any further connections.
      */
-    shutdown() {
+    disconnect() {
         this.#backoff = -1;
         this.#socket.close();
     }

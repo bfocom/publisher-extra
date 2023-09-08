@@ -5,6 +5,10 @@ A simple interface to a [BFO Publisher](https://publisher.bfo.com) web service.
 
 Example (NodeJS)
 ---
+```sh
+npm install bfo-publisher
+```
+
 The module can be loaded as an ES6 module or a CommonJS module.
 
 ```js
@@ -33,12 +37,14 @@ let message = {
     ]
 };
 
-// Send the message, wait for the response, process it.
+// Send a message, wait for the response, process it.
+// Multiple messages can be sent; call disconnect() when finished
+// to close the socket.
 const publisher = new Publisher("http://localhost:8080/");
 publisher.build(action, message).send().then((response) => {
     fs.writeFileSync("out.pdf", response.content);
 }).finally(() => {
-    publisher.shutdown();
+    publisher.disconnect();
 });
 ```
 
@@ -57,32 +63,32 @@ This example shows how to make a button to download the current page as a PDF
   <script>
    const publisher = new Publisher("http://localhost:8080/");
    function convert(e) {
-      let src = e.srcElement;
-      publisher.build("convert", {
-          put: [ { content: document } ]
-      }).send().then((response) => {
-          let a = document.createElement("a");
-          a.href = URL.createObjectURL(new Blob([response.content],{type:response.content_type}));
-          a.download = "file.pdf";
-          a.addEventListener("click", (e) => {
-              e.srcElement.remove();
-              setTimeout(() => { URL.revokeObjectURL(a.href); }, 500);
-              return true;
-          });
-          a.click();
-      }).catch((e) => {
-          console.log(e);
-      });
-  }
-  function initialize() {
-      document.getElementById("button").addEventListener("click", convert);
-  }
-  window.addEventListener("DOMContentLoaded", initialize);
- </script>
-</head>
-<body>
- <button id="button">Download this page as a PDF</button>
-</body>
+     let src = e.srcElement;
+     publisher.build("convert", {
+       put: [ { content: document } ]
+     }).send().then((response) => {
+       let a = document.createElement("a");
+       let blob = new Blob([response.content],{type:response.content_type}));
+       a.href = URL.createObjectURL(blob);
+       a.download = "file.pdf";
+       a.addEventListener("click", (e) => {
+         setTimeout(() => { URL.revokeObjectURL(a.href); }, 500);
+         return true;
+       });
+       a.click();
+     }).catch((e) => {
+       console.log(e);
+     });
+   }
+   function initialize() {
+     document.getElementById("button").addEventListener("click", convert);
+   }
+   window.addEventListener("DOMContentLoaded", initialize);
+  </script>
+ </head>
+ <body>
+  <button id="button">Download this page as a PDF</button>
+ </body>
 </html>
 ```
 
@@ -113,6 +119,7 @@ To use the API:
    be `convert`
 3. Call `send()` on the returned object. This returns a Promise which will resolve with the responses to your request.
    If the server responds with an error, the Promise is rejected.
+4. Repeat as required; multiple messages can be sent at once. When done call `publisher.disconnect()` to close the socket.
 
 The object returned from `send()` is also an `EventTarget` and will emit `log` events if the action was `convert`.
 The message formats are fully described the BFO Publisher documentation, but with some minor additions to make
@@ -134,3 +141,5 @@ The `Publisher` class takes a URL in the constructor, but can also accept an obj
 * `max_backoff` - if the server doesn't reconnect on the first attempt, the delay will be quadrupled on every attempt until
 * `callback` - a callback function which will be called if the server sends a callback to request authorization to access
 a URL - typically a username and password. The method should modify the supplied list of callbacks in place and return.
+
+The `url` (a string) and `connected` (a boolean) properties on the `Publisher` object show the current state of the connection
