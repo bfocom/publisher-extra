@@ -60,7 +60,6 @@ class Publisher extends EventTarget {
         this.#callbacks = {};
         this.#id = 0;
         this.#connected = false;
-        this.#connect();
     }
 
     /**
@@ -203,6 +202,7 @@ class Publisher extends EventTarget {
      * @returns {Message} a new Message object
      */
     build(type, params) {
+        const self = this;
         return new PublisherMessage({
             type: type,
             params: params,
@@ -210,6 +210,11 @@ class Publisher extends EventTarget {
             authorization: this.#authorization,
             authorization_sent: this.#authorization_sent,
             send: this.#send,
+            connect: () => {
+                if (self.#socket == null) { // Lazy connection
+                    self.#connect();
+                }
+            },
             callback:this.#callback
         });
     }
@@ -671,6 +676,7 @@ class PublisherMessage extends EventTarget {
     #authorization;
     #authorization_sent;
     #send;
+    #connect;
     #callback;
 
     constructor(options) {
@@ -684,6 +690,7 @@ class PublisherMessage extends EventTarget {
         this.#authorization = options.authorization;
         this.#authorization_sent = options.authorization_sent;
         this.#send = options.send;
+        this.#connect = options.connect;
         this.#callback = options.callback;
     }
 
@@ -694,177 +701,185 @@ class PublisherMessage extends EventTarget {
      * @param callback function to call on success
      */
     #fixContent(items, type, callback) {
-        // The process is:
-        //  1. Loop over every item in the "items" array
-        //  2. If the item has a final type (string or Uint8Array), stop processing that item
-        //  3. If the item is a promise, and if that promise hasn't been processed by this
-        //     loop before (we set a __pending flag), then add a callback when that promise
-        //     completes: "set the item content to the value of the promise, and call this
-        //     method again". Then set finished=false - at the end of *this* method invocation,
-        //     nothing will happen.
-        //  4. If the item is a complex type, then evaluate it, set item.content to the result
-        //     and reprocess the item.
-        //
-        //  Any of these options can potentially add other items to the list - for example,
-        //  processing "document" might add images and stylesheets.
-        //
-        //  When this method runs through and doesn't wait for any promises (finished=true),
-        //  call the callback.
-        //
-        //  Failure throws an error which should propagate up.
-        // This is a messy model - yay JavaScript.
-        //  
         const self = this;
         let finished = true;
-        for (let i=0;i<items.length;i++) {
-            const item = items[i];
-            const loc = type == "put" ? "" : "put[" + i + "].";
-            let repeat = true;
-            while (repeat) {
-                // Basic types: string, Uint8Array, Promise
-                if (!item.content) {
-                    throw new new Error(loc + "content missing");
-                    repeat = false;
-                } else if (typeof(item.content) == "string" || item.content instanceof Uint8Array) {
-                    if (!item.path) {
-                        if (type == "convert" && i == 0) {
-                            item.path = "about:file";
-                        } else {
-                            throw new Error(name + ".path missing");
-                        }
-                    }
-                    repeat = false;
-                } else if (item.content instanceof Promise) {
-                    if (item.__pending) {
-                    } else {
-                        item.__pending = true;
-                        item.content.then((v) => {
-                            item.content = v;
-                            delete item.__pending;
-                            self.#fixContent(items, type, callback);
-                        });
-                    }
-                    repeat = false;
-                    finished = false;
-
-                // Special handling for particular types
-
-                } else if (item.content instanceof ArrayBuffer) {
-                    item.content = new Uint8Array(item.content);
-
-                } else if (typeof Response != "undefined" && item.content instanceof Response) {  // from Fetch
-                    const response = item.content;
-                    // It's not our job to handle redirects - if they need processing, whowever
-                    // passes us in the fetch needs to set {redirect:"follow"}
-                    if (response.ok) {
-                        if (!item.path) {
-                            item.path = response.url;
-                        }
-                        item.content = response.blob(); // because blob gives us type as well
-                    } else {
-                        items.splice(i--, 1);      // remove the item
+        try {
+            // The process is:
+            //  1. Loop over every item in the "items" array
+            //  2. If the item has a final type (string or Uint8Array), stop processing that item
+            //  3. If the item is a promise, and if that promise hasn't been processed by this
+            //     loop before (we set a __pending flag), then add a callback when that promise
+            //     completes: "set the item content to the value of the promise, and call this
+            //     method again". Then set finished=false - at the end of *this* method invocation,
+            //     nothing will happen.
+            //  4. If the item is a complex type, then evaluate it, set item.content to the result
+            //     and reprocess the item.
+            //
+            //  Any of these options can potentially add other items to the list - for example,
+            //  processing "document" might add images and stylesheets.
+            //
+            //  When this method runs through and doesn't wait for any promises (finished=true),
+            //  call the callback.
+            //
+            //  Failure throws an error which should propagate up.
+            // This is a messy model - yay JavaScript.
+            //  
+            for (let i=0;i<items.length;i++) {
+                const item = items[i];
+                const loc = type == "put" ? "" : "put[" + i + "].";
+                let repeat = true;
+                while (repeat) {
+                    // Basic types: string, Uint8Array, Promise
+                    if (!item.content) {
+                        throw new new Error(loc + "content missing");
                         repeat = false;
-                    }
+                    } else if (typeof(item.content) == "string" || item.content instanceof Uint8Array) {
+                        if (!item.path) {
+                            if (type == "convert" && i == 0) {
+                                item.path = "about:file";
+                            } else {
+                                throw new Error(name + ".path missing");
+                            }
+                        }
+                        repeat = false;
+                    } else if (item.content instanceof Promise) {
+                        if (item.__pending) {
+                        } else {
+                            item.__pending = true;
+                            item.content.then((v) => {
+                                item.content = v;
+                                delete item.__pending;
+                                self.#fixContent(items, type, callback);
+                            });
+                        }
+                        repeat = false;
+                        finished = false;
 
-                } else if (typeof Blob != "undefined" && item.content instanceof Blob) {
-                    const blob = item.content;
-                    item.content = item.content.arrayBuffer();
+                    // Special handling for particular types
 
-                } else if (typeof Buffer != "undefined" && item.content instanceof Buffer) {
-                    const buffer = item.content;
-                    item.content = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.length);
+                    } else if (item.content instanceof ArrayBuffer) {
+                        item.content = new Uint8Array(item.content);
 
-                } else if ((typeof HTMLDocument != "undefined" && item.content instanceof HTMLDocument) || (typeof XMLDocument != "undefined" && item.content instanceof XMLDocument)) {
-                    const doc = item.content;
-                    if (!item.content_type) {
-                        item.content_type = doc.contentType;
-                    }
-                    if (!item.path) {
-                        item.path = doc.documentURI;
-                    }
-                    if (doc instanceof HTMLDocument) {
-                        item.content = doc.documentElement.outerHTML;
-                        if (req.type == "convert") {
-                            // Add any referenced images, stylesheets, objects
-                            if (doc == globalThis.document) {
+                    } else if (typeof Response != "undefined" && item.content instanceof Response) {  // from Fetch
+                        const response = item.content;
+                        // It's not our job to handle redirects - if they need processing, whowever
+                        // passes us in the fetch needs to set {redirect:"follow"}
+                        if (response.ok) {
+                            if (!item.path) {
+                                item.path = response.url;
+                            }
+                            item.content = response.blob(); // because blob gives us type as well
+                        } else {
+                            items.splice(i--, 1);      // remove the item
+                            repeat = false;
+                        }
 
-                                // The idea here is we store the stylesheets as they
-                                // are seen by the browser, the intent being to catch
-                                // any imports which are behind firewalls etc. so couldn't
-                                // be loaded by the server.
-                                //
-                                // Stylesheets from other origins won't allow us access to
-                                // "cssRules", fairly safe to presume these are public and
-                                // accessible server-side.
-                                // 
-                                let q = [ ... document.styleSheets ];
-                                for (const sheet of q) {
-                                    try {
-                                        sheet.cssRules;
-                                    } catch (e) {
-                                        continue;
+                    } else if (typeof Blob != "undefined" && item.content instanceof Blob) {
+                        const blob = item.content;
+                        item.content = item.content.arrayBuffer();
+
+                    } else if (typeof Buffer != "undefined" && item.content instanceof Buffer) {
+                        const buffer = item.content;
+                        item.content = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.length);
+
+                    } else if ((typeof HTMLDocument != "undefined" && item.content instanceof HTMLDocument) || (typeof XMLDocument != "undefined" && item.content instanceof XMLDocument)) {
+                        const doc = item.content;
+                        if (!item.content_type) {
+                            item.content_type = doc.contentType;
+                        }
+                        if (!item.path) {
+                            item.path = doc.documentURI;
+                        }
+                        if (doc instanceof HTMLDocument) {
+                            item.content = doc.documentElement.outerHTML;
+                            if (type == "convert") {
+                                // Add any referenced images, stylesheets, objects
+                                if (doc == globalThis.document) {
+
+                                    // The idea here is we store the stylesheets as they
+                                    // are seen by the browser, the intent being to catch
+                                    // any imports which are behind firewalls etc. so couldn't
+                                    // be loaded by the server.
+                                    //
+                                    // Stylesheets from other origins won't allow us access to
+                                    // "cssRules", fairly safe to presume these are public and
+                                    // accessible server-side.
+                                    // 
+                                    let q = [ ... document.styleSheets ];
+                                    for (const sheet of q) {
+                                        try {
+                                            sheet.cssRules;
+                                        } catch (e) {
+                                            continue;
+                                        }
+                                        if (sheet.href) {
+                                            let tostring = "";
+                                            for (const r of items) {
+                                                if (r.path == sheet.href) {
+                                                    // This stylesheet already defined
+                                                    tostring = null;
+                                                    break
+                                                }
+                                            }
+                                            if (tostring != null) {
+                                                let importing = true;
+                                                for (const rule of sheet.cssRules) {
+                                                    if (rule.styleSheet && importing) {
+                                                        q.push(rule.styleSheet);
+                                                    } else {
+                                                        importing = false;
+                                                    }
+                                                    let s = rule.cssText;
+                                                    if (tostring) {
+                                                        tostring += "\n";
+                                                    }
+                                                    tostring += rule.cssText;
+                                                }
+                                                items.push({"path": sheet.href, "content": tostring, "content_type": sheet.type });
+                                            }
+                                        } else {
+                                            for (const rule of sheet.cssRules) {
+                                                if (rule.styleSheet) {
+                                                    q.push(rule.styleSheet);
+                                                } else {
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     }
-                                    if (sheet.href) {
-                                        let tostring = "";
-                                        for (const r of req.put) {
-                                            if (r.path == sheet.href) {
-                                                // This stylesheet already defined
-                                                tostring = null;
+
+                                    doc.querySelectorAll("img").forEach((img) => {
+                                        for (const r of items) {
+                                            if (r.path == img.src) {
+                                                // This img already defined
+                                                img = null;
                                                 break
                                             }
                                         }
-                                        if (tostring != null) {
-                                            let importing = true;
-                                            for (const rule of sheet.cssRules) {
-                                                if (rule.styleSheet && importing) {
-                                                    q.push(rule.styleSheet);
-                                                } else {
-                                                    importing = false;
-                                                }
-                                                let s = rule.cssText;
-                                                if (tostring) {
-                                                    tostring += "\n";
-                                                }
-                                                tostring += rule.cssText;
-                                            }
-                                            items.push({"path": sheet.href, "content": tostring, "content_type": sheet.type });
+                                        if (img) {
+                                            items.push({ path:img.src, content: fetch(img.src) });
                                         }
-                                    } else {
-                                        for (const rule of sheet.cssRules) {
-                                            if (rule.styleSheet) {
-                                                q.push(rule.styleSheet);
-                                            } else {
-                                                break;
-                                            }
-                                        }
-                                    }
+                                    });
+                                    // TODO picture, object, embed
                                 }
-
-                                doc.querySelectorAll("img").forEach((img) => {
-                                    for (const r of req.put) {
-                                        if (r.path == img.src) {
-                                            // This img already defined
-                                            img = null;
-                                            break
-                                        }
-                                    }
-                                    if (img) {
-                                        items.push({ path:img.src, content: fetch(img.src) });
-                                    }
-                                });
-                                // TODO picture, object, embed
                             }
+                        } else {
+                            item.content = new XMLSerializer().serializeToString(doc.documentElement);
                         }
                     } else {
-                        item.content = new XMLSerializer().serializeToString(doc.documentElement);
+                        throw new Error(name + ".content: unknown type " + (item.content.constructor ? item.content.constructor.name : typeof(item.content)));
                     }
-                } else {
-                    throw new Error(name + ".content: unknown type " + (item.content.constructor ? item.content.constructor.name : typeof(item.content)));
                 }
             }
+        } catch (e) {
+            console.log("fixContent failed", e);
         }
-        if (finished) {
-            callback();
+        try {
+            if (finished) {
+                callback();
+            }
+        } catch (e) {
+            console.log("fixContent.callback failed", e);
         }
     }
 
@@ -899,6 +914,7 @@ class PublisherMessage extends EventTarget {
         return new Promise((resolve, reject) => {
             this.#verify(req, () => {
                 new Promise((resolve, reject) => {
+                    self.#connect();
                     if (self.#publisher.connected) {
                         resolve();
                     } else {
@@ -957,6 +973,6 @@ class PublisherMessage extends EventTarget {
     }
 }
 
-if (module) {
+if (typeof(module) != "undefined") {
     module.exports = { Publisher };
 }

@@ -39,7 +39,6 @@ let message = {
 
 // Send a message, wait for the response, process it.
 // Multiple messages can be sent; call disconnect() when finished
-// to close the socket.
 const publisher = new Publisher("http://localhost:8080/");
 publisher.build(action, message).send().then((response) => {
     fs.writeFileSync("out.pdf", response.content);
@@ -51,7 +50,7 @@ publisher.build(action, message).send().then((response) => {
 Example (Browser)
 ---
 
-Non-module use in a browser is shown here - the code does nothing but defines two classes (`Publisher` and `PublisherMessage`).
+Non-module use in a browser is shown here - the code defines two classes (`Publisher` and `PublisherMessage`).
 Any `HTMLDocument` or `XMLDocument` can be specified in a browser as a `content` object for conversion.
 This example shows how to make a button to download the current page as a PDF
 
@@ -59,7 +58,7 @@ This example shows how to make a button to download the current page as a PDF
 <!DOCTYPE html>
 <html>
  <head>
-  <script src="https://bfocom.github.io/publisher-extra/api-js/bfo-publisher/publisher-common.js"></script>
+  <script src="https://publisher.bfo.com/public/publisher.js"></script>
   <script>
    const publisher = new Publisher("http://localhost:8080/");
    function convert(e) {
@@ -68,7 +67,7 @@ This example shows how to make a button to download the current page as a PDF
        put: [ { content: document } ]
      }).send().then((response) => {
        let a = document.createElement("a");
-       let blob = new Blob([response.content],{type:response.content_type}));
+       let blob = new Blob([response.content],{type:response.content_type});
        a.href = URL.createObjectURL(blob);
        a.download = "file.pdf";
        a.addEventListener("click", (e) => {
@@ -95,15 +94,15 @@ This example shows how to make a button to download the current page as a PDF
 It can also be used as an ES6 module in a browser like this:
 
 ```html
-<script src="https://bfocom.github.io/publisher-extra/api-js/bfo-publisher/publisher-module.js" type="module"></script>
 <script type="module">
- import Publisher from "bfo-publisher";
+ import Publisher from "https://publisher.bfo.com/public/publisher-module.js";
  const publisher = new Publisher("http://localhost:8080/");
  // ... etc
 </script>
 ```
 
 The code uses the the browser WebSocket implementation, so has no dependencies.
+We **strongly** recommend you host the script yourself for production use.
 
 Detail
 ---
@@ -142,4 +141,4 @@ The `Publisher` class takes a URL in the constructor, but can also accept an obj
 * `callback` - a callback function which will be called if the server sends a callback to request authorization to access
 a URL - typically a username and password. The method should modify the supplied list of callbacks in place and return.
 
-The `url` (a string) and `connected` (a boolean) properties on the `Publisher` object show the current state of the connection
+The `url` (string) and `connected` (boolean) properties on the `Publisher` object show the current state of the connection.
