@@ -2,7 +2,7 @@
 
 This repository contains open-source material that is intended to work with BFO Publisher (https://publisher.bfo.com)
 
-* [API-JS](/bfocom/publisher-extra/tree/main/api-js/bfo-publisher)
+* [API-JS](https://github.com/bfocom/publisher-extra/tree/main/api-js/bfo-publisher)
   is a JavaScript API that talks to the BFO Publisher web-service.
   For both [NodeJS](https://www.npmjs.com/package/bfo-publisher) and browser.
 
