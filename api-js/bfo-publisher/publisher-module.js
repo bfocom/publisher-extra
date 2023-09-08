@@ -1,13 +1,4 @@
 /**
- * @typedef {Object} publisherOptions
- * @property {string} url the URL of the server. Required.
- * @property {string} authorization the Authorization header to send with every message. Optional; may be overridden on a per-message basis
- * @property {number} min_backoff the number of milliseconds after a dropped connection to wait before trying again the first time (default: 500).
- * @property {number} max_backoff the maximum number of milliseconds to wait between reconnection attempts, or set to never reconnect (default: 60000).
- * @property {function} callback an optional callback function for any requests from the server for authorization. The function will be called with an array of callbacks, and should modify them in place as described at <a href="https://publisher.bfo.com/live/help/#_websockets">https://publisher.bfo.com/live/help/#_websockets</a>
- */
-
-/**
  * The Publisher class represents a connection to a BFO Publisher server instance.
  */
 class Publisher extends EventTarget {
@@ -38,7 +29,7 @@ class Publisher extends EventTarget {
 
     /**
      * Create a new Publisher instance.
-     * @param {publisherOptions|string} options the configuration options. If this parameter is specified as a string, it will be used as the URL.
+     * @param options the configuration options. If this parameter is specified as a string, it will be used as the URL.
      */
     constructor(options) {
         super();
@@ -212,7 +203,7 @@ class Publisher extends EventTarget {
      * @returns {Message} a new Message object
      */
     build(type, params) {
-        return new Message({
+        return new PublisherMessage({
             type: type,
             params: params,
             publisher: this,
@@ -224,13 +215,13 @@ class Publisher extends EventTarget {
     }
 
     /**
-     * Encode an object as CBOR
+     * Encode an object as CBOR.
+     * Supports boolean/numbers/bigint/strings/uint8array/list/object, as well as Date and URL
      * @param v the object to encode
      * @param out the optional object to write to; must have a write() method that writes a uint8
      * @returns the Uint8Array written to, or null if stream was passed in
      */
     static #encodeCBOR(v, stream) {
-        // tags are unused, bigints OK up to 64 bits.
         let out;
         if (!stream) {
             out = {
@@ -285,7 +276,7 @@ class Publisher extends EventTarget {
             } else {
                 const type = typeof(v);
                 if (type == "number") {
-                    if (Math.floor(v) === v && Math.abs(v) < Number.MAX_SAFE_INTEGER) {
+                    if (Math.floor(v) === v && Math.abs(v) <= Number.MAX_SAFE_INTEGER) {    // it's really an int, not a huge double
                         if (v < 0) {
                             prefix = 1;
                             v = -v - 1;
@@ -301,15 +292,15 @@ class Publisher extends EventTarget {
                         } else {
                             out.ensure(9).write((prefix << 5) | 27).write(v>>56).write(v>>48).write(v>>40).write(v>>32).write(v>>24).write(v>>16).write(v>>8).write(v);
                         }
-                    } else {        // write float
+                    } else {
                         let dv = new DataView(new ArrayBuffer(8));
                         dv.setFloat32(0, v);
-                        if (v == dv.getFloat32(0)) {
+                        if (v == dv.getFloat32(0)) {        // can represent this exactly in 32bits
                             out.ensure(5).write(0xfa);
                             for (let i=0;i<4;i++) {
                                 out.write(dv.getUint8(i));
                             }
-                        } else {
+                        } else {                            // need 64bits
                             dv.setFloat64(0, v);
                             out.ensure(9).write(0xfb);
                             for (let i=0;i<8;i++) {
@@ -318,26 +309,31 @@ class Publisher extends EventTarget {
                         }
                     }
                 } else if (type == "bigint") {
-                    if (v < 0) {
-                        prefix = 1;
-                        v = -v - 1n;
-                    }
-                    if (v <= 0xFFFFFFFFFFFFFFFFn) {
-                        out.ensure(9).write((prefix << 5) | 27);
-                        for (let i=56n;i>=0;i-=8n) {
-                            out.write(Number((v >> i) % 256n));
+                    if (v <= 4294967295n && v >= -4294967296n) {    // roughly enough to catch 4-byte nums
+                        writeObject(Number(v), out, prefix);
+                    } else {
+                        if (v < 0) {
+                            prefix = 1;
+                            v = -v - 1n;
                         }
-                    } else {
-                        throw new Error("BigInt > 64 bits not yet supported");
-                    }
-                } else if (v instanceof Uint8Array) {
-                    writeObject(v.length, out, 2);
-                    if (out.writeUint8Array) {
-                        out.writeUint8Array(v);
-                    } else {
-                        out.ensure(v.length);
-                        for (let i=0;i<v.length;i++) {
-                            out.write(v[i]);
+                        if (v <= 0xFFFFFFFFFFFFFFFFn) {     // write as 64bit
+                            out.ensure(9).write((prefix << 5) | 27);
+                            for (let i=56n;i>=0;i-=8n) {
+                                out.write(Number((v >> i) % 256n));
+                            }
+                        } else {                            // write as tagged buffer
+                            let l = -1;
+                            let q = v;
+                            while (q > 0n) {
+                                l++;
+                                q >>= 8n;
+                            }
+                            writeObject(2 + prefix, out, 6); // tag 2
+                            writeObject(l + 1, out, 2);      // buffer of length l + 1
+                            out.ensure(l);
+                            for (let i=BigInt(l * 8);i>=0;i-=8n) {
+                                out.write(Number((v >> i) % 256n));
+                            }
                         }
                     }
                 } else if (type == "string") {
@@ -349,8 +345,7 @@ class Publisher extends EventTarget {
                             if (c >= 0x800) {
                                 len++;
                                 if (c > 0xffff) {
-                                    // len++;   utf16 - it's 2 chars already
-                                    i++;
+                                    i++;    // don't bump len, it's 2 chars already
                                 }
                             }
                         }
@@ -381,6 +376,25 @@ class Publisher extends EventTarget {
                     for (let i=0;i<v.length;i++) {
                         writeObject(v[i], out);
                     }
+                } else if (v instanceof Uint8Array || v instanceof ArrayBuffer) {
+                    if (v instanceof ArrayBuffer) {
+                        v = new Uint8Array(v);
+                    }
+                    writeObject(v.length, out, 2);
+                    if (out.writeUint8Array) {
+                        out.writeUint8Array(v);
+                    } else {
+                        out.ensure(v.length);
+                        for (let i=0;i<v.length;i++) {
+                            out.write(v[i]);
+                        }
+                    }
+                } else if (v instanceof Date) {     // tag0
+                    writeObject(0, out, 6);
+                    writeObject(v.toISOString(), out);
+                } else if (v instanceof URL) {      // tag32
+                    writeObject(32, out, 6);
+                    writeObject(v.toString(), out);
                 } else {
                     let keys = Object.keys(v);
                     writeObject(keys.length, out, 5);
@@ -397,15 +411,19 @@ class Publisher extends EventTarget {
 
     /**
      * Decode an object from a CBOR encoded source.
-     * The source may be Uint8Array, ArrayBuffer or any object with a read()
-     * method that returns a uint8 (and throws an Error at EOF)
+     * The source may be Uint8Array, or any object with a read()
+     * method that returns a uint8 (and throws an Error at EOF).
      *
-     * tags are ignored, bigints OK up to 64 bits. Tested against
-     * appendix A test-vectors
+     * Tags are ignored except for:
+     *  0,1 - converted from string/number to Date
+     *  2,3 - convert from buffer to BigInt
+     *  32  - convert from string to URL
+     *
+     * Passes all RFC8949 Appendix-A tests.
      */
     static #decodeCBOR(v) {
         if (v instanceof ArrayBuffer) {
-            v = new Uint8Array(v);
+        v = new Uint8Array(v);
         }
         if (v instanceof Uint8Array) {
             const buf = v;
@@ -416,6 +434,10 @@ class Publisher extends EventTarget {
                         throw new Error("eof");
                     }
                     return buf[this.off++];
+                },
+                readUint8Array: function(out) {
+                    out.set(buf.slice(this.off, this.off + out.length), 0);
+                    this.off += out.length;
                 }
             };
         }
@@ -452,8 +474,8 @@ class Publisher extends EventTarget {
                 } else {
                     return -1 - o;
                 }
-            } else if (type == 2) {     // bytebuffer
-                if (c == 0x1F) {
+            } else if (type == 2) { // buffer
+                if (c == 0x1F) {    // indefinite
                     let a = [];
                     c = v.read();
                     let totlen = 0;
@@ -473,16 +495,20 @@ class Publisher extends EventTarget {
                         j += a[i].length;
                     }
                     return out;
-                } else {
+                } else {            // definite
                     let len = readObject(v, c);
                     let out = new Uint8Array(len);
-                    for (let i=0;i<len;i++) {
-                        out[i] = v.read();
+                    if (v.readUint8Array) {
+                        v.readUint8Array(out);
+                    } else {
+                        for (let i=0;i<len;i++) {
+                            out[i] = v.read();
+                        }
                     }
                     return out;
                 }
-            } else if (type == 3) {     // string
-                if (c == 0x1F) {
+            } else if (type == 3) { // string
+                if (c == 0x1F) {    // indefinite
                     let a = [];
                     c = v.read();
                     while (c != 0xFF && (c>>5) == 3) {
@@ -493,16 +519,20 @@ class Publisher extends EventTarget {
                         throw new Error("Invalid indefinite length string component " + c);
                     }
                     return a.join("");
-                } else {
+                } else {            // definite
                     let len = readObject(v, c);
                     let buf = new Uint8Array(len);
-                    for (let i=0;i<len;i++) {
-                        buf[i] = v.read();
+                    if (v.readUint8Array) {
+                        v.readUint8Array(buf);
+                    } else {
+                        for (let i=0;i<len;i++) {
+                            buf[i] = v.read();
+                        }
                     }
                     return new TextDecoder().decode(buf);
                 }
-            } else if (type == 4) {     // array
-                if (c == 0x1F) {
+            } else if (type == 4) { // array
+                if (c == 0x1F) {    // indefinite
                     let out = new Array();
                     c = v.read();
                     while (c != 0xFF) {
@@ -510,7 +540,7 @@ class Publisher extends EventTarget {
                         c = v.read();
                     }
                     return out;
-                } else {
+                } else {            // definite
                     let len = readObject(v, c);
                     let out = new Array(len);
                     for (let i=0;i<len;i++) {
@@ -518,8 +548,8 @@ class Publisher extends EventTarget {
                     }
                     return out;
                 }
-            } else if (type == 5) {     // map
-                if (c == 0x1F) {
+            } else if (type == 5) { // map
+                if (c == 0x1F) {    // indefinite
                     let out = {};
                     c = v.read();
                     while (c != 0xFF) {
@@ -530,7 +560,7 @@ class Publisher extends EventTarget {
                         c = v.read();
                     }
                     return out;
-                } else {
+                } else {            // definite
                     let len = readObject(v, c);
                     let out = {};
                     for (let i=0;i<len;i++) {
@@ -540,10 +570,50 @@ class Publisher extends EventTarget {
                     }
                     return out;
                 }
-            } else if (type == 6) {
-                // tags
+            } else if (type == 6) { // tagged object
                 let tag = readObject(v, c);
                 let object = readObject(v);
+                switch (tag) {
+                    case 0:         // text string	Standard date/time string; see Section 3.4.1
+                        if (typeof(object) == "string") {
+                            object = new Date(object);
+                        }
+                        break;
+                    case 1:         // integer or float	Epoch-based date/time; see Section 3.4.2
+                        if (typeof(object) == "number") {
+                            object = new Date(object * 1000);
+                        }
+                        break;
+                    case 2:         // byte string     Unsigned bignum; see Section 3.4.3
+                    case 3:         // byte string     Negative bignum; see Section 3.4.3
+                        if (object instanceof Uint8Array) {
+                            let v = 0n;
+                            for (let i=0;i<object.length;i++) {
+                                v = (v<<8n) | BigInt(object[i]);
+                            }
+                            if (tag == 3) {
+                                v = -1n - v;
+                            }
+                            object = v;
+                        }
+                        break;
+                    case 32:	// text string	URI; see Section 3.4.5.3
+                        if (typeof(object) == "string") {
+                            object = new URL(object);
+                        }
+                        break;
+                    case 4:         // array	Decimal fraction; see Section 3.4.4
+                    case 5:		// array	Bigfloat; see Section 3.4.4
+                    case 21:	// (any)	Expected conversion to base64url encoding; see Section 3.4.5.2
+                    case 22:	// (any)	Expected conversion to base64 encoding; see Section 3.4.5.2
+                    case 23:	// (any)	Expected conversion to base16 encoding; see Section 3.4.5.2
+                    case 24:	// byte string	Encoded CBOR data item; see Section 3.4.5.1
+                    case 33:	// text string	base64url; see Section 3.4.5.3
+                    case 34:	// text string	base64; see Section 3.4.5.3
+                    case 36:	// text string	MIME message; see Section 3.4.5.3
+                    case 55799:	// (any)	Self-described CBOR; see Section 3.4.6
+                        break;
+                }
                 return object;
             } else if (c == 20) {
                 return false;
@@ -555,7 +625,7 @@ class Publisher extends EventTarget {
                 return undefined;
             } else if (c == 24) {
                 return undefined;
-            } else if (c == 25) {
+            } else if (c == 25) {   // float16
                 const x = readObject(v, c);
                 let s = (x & 0x8000) >>> 15;
                 let e = (x & 0x7c00) >>> 10;
@@ -571,13 +641,13 @@ class Publisher extends EventTarget {
                 } else {
                     return (s != 0 ? -1.0 : 1.0) * Math.pow(2, e - 15) * (1 + f / Math.pow(2, 10));
                 }
-            } else if (c == 26) {
+            } else if (c == 26) {   // float32
                 let dv = new DataView(new ArrayBuffer(4));
                 for (let i=0;i<4;i++) {
                     dv.setUint8(i, v.read());
                 }
                 return dv.getFloat32(0);
-            } else if (c == 27) {
+            } else if (c == 27) {   // float64
                 let dv = new DataView(new ArrayBuffer(8));
                 for (let i=0;i<8;i++) {
                     dv.setUint8(i, v.read());
@@ -593,7 +663,7 @@ class Publisher extends EventTarget {
 /**
  * The Message class represents a single request to a BFO Publisher server instance.
  */
-class Message extends EventTarget {
+class PublisherMessage extends EventTarget {
     
     #type
     #params
@@ -887,4 +957,4 @@ class Message extends EventTarget {
     }
 }
 
-module.exports = Publisher;
+export default Publisher;

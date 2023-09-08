@@ -1,0 +1,31 @@
+{
+  "name": "bfo-publisher",
+  "type": "module",
+  "author": "Mike Bremford (https://publisher.bfo.com)",
+  "exports": {
+    "import": "./publisher-module.js",
+    "require": "./publisher.js"
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "ws": "^8.13.0"
+  },
+  "description": "Interface with a BFO Publisher web-service",
+  "main": "publisher.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bfocom/publisher-extra.git#main"
+  },
+  "keywords": [
+    "BFO",
+    "Publisher"
+  ],
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bfocom/publisher-extra/issues"
+  },
+  "homepage": "https://github.com/bfocom/publisher-extra/tree/main#readme"
+}
