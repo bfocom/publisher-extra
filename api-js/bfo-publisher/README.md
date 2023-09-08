@@ -121,8 +121,8 @@ To use the API:
 4. Repeat as required; multiple messages can be sent at once. When done call `publisher.disconnect()` to close the socket.
 
 The object returned from `send()` is also an `EventTarget` and will emit `log` events if the action was `convert`.
-The message formats are fully described the BFO Publisher documentation, but with some minor additions to make
-life easier:
+The message formats are [fully described](https://publisher.bfo.com/live/help/#_web_service)
+in the BFO Publisher documentation, but with some minor additions to make life easier:
 
 * The `content` key (for content being sent to BFO Publisher for conversion) can be specified as a `string`, `Uint8Array`
   or `ArrayBuffer`, or as a Promise that will eventually return one of those (from a `Blob` or a `fetch()`, as shown in the example above).
