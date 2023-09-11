@@ -974,5 +974,5 @@ class PublisherMessage extends EventTarget {
 }
 
 if (typeof(module) != "undefined") {
-    module.exports = { Publisher };
+    module.exports = Publisher;
 }

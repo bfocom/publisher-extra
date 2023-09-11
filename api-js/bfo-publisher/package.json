@@ -3,8 +3,8 @@
   "type": "module",
   "author": "Mike Bremford (https://publisher.bfo.com)",
   "exports": {
-    "import": "./publisher-module.js",
-    "require": "./publisher.js"
+    "import": "./publisher.mjs",
+    "require": "./publisher.cjs"
   },
   "version": "1.0.1",
   "dependencies": {
