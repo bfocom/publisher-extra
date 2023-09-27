@@ -6,7 +6,7 @@
     "import": "./publisher.mjs",
     "require": "./publisher.cjs"
   },
-  "version": "1.0.1",
+  "version": "1.0.3",
   "dependencies": {
     "ws": "^8.13.0"
   },

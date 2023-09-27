@@ -18,12 +18,13 @@ import Publisher from "bfo-publisher";          // ES6
 // const Publisher = require("bfo-publisher");  // CommonJS
 
 // The message you want to send: the actions and formats
-// are defined in the BFO Publisher documentation
+// are defined in the BFO Publisher documentation.
 let action = "convert";
 let message = {
     put: [
         {
           content: fetch("http://example.com/test.html")
+          /* "path" and "content_type" are derived from the fetch */
         },
         {
           content: "body { margin: 0 }",
@@ -33,6 +34,7 @@ let message = {
         {
           content: new Blob([myuint8array], { type: "image/png" }),
           path: "my-image.png"
+          /* "content_type" is derived from the Blob */
         }
     ]
 };

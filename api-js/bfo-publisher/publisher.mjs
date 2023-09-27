@@ -295,7 +295,16 @@ class Publisher extends EventTarget {
                         } else if (v <= 0x7fffffff) {
                             out.ensure(5).write((prefix << 5) | 26).write(v>>24).write(v>>16).write(v>>8).write(v);
                         } else {
-                            out.ensure(9).write((prefix << 5) | 27).write(v>>56).write(v>>48).write(v>>40).write(v>>32).write(v>>24).write(v>>16).write(v>>8).write(v);
+                            out.ensure(9).write((prefix << 5) | 27);
+                            let bv = BigInt(v);
+                            out.write(Number(bv / 0xffffffffffffffn));
+                            out.write(Number(bv / 0xffffffffffffn));
+                            out.write(Number(bv / 0xffffffffffn));
+                            out.write(Number(bv / 0xffffffffn));
+                            out.write(v>>24);
+                            out.write(v>>16);
+                            out.write(v>>8);
+                            out.write(v);
                         }
                     } else {
                         let dv = new DataView(new ArrayBuffer(8));
@@ -426,9 +435,12 @@ class Publisher extends EventTarget {
      *
      * Passes all RFC8949 Appendix-A tests.
      */
-    static #decodeCBOR(v) {
+    static #decodeCBOR(v, options) {
+        if (!options) {
+            options = {};
+        }
         if (v instanceof ArrayBuffer) {
-        v = new Uint8Array(v);
+            v = new Uint8Array(v);
         }
         if (v instanceof Uint8Array) {
             const buf = v;
@@ -464,11 +476,10 @@ class Publisher extends EventTarget {
                 } else if (c == 27) {
                     let v1 = ((v.read()<<24) | (v.read()<<16) | (v.read()<<8) | v.read())>>>0;
                     let v2 = ((v.read()<<24) | (v.read()<<16) | (v.read()<<8) | v.read())>>>0;
-                    if (v1 > Number.MAX_SAFE_INTEGER>>32) {
-                        return (BigInt(v1)<<32n) | BigInt(v2);
-                    } else {
-                        return (v1<<32) | v2;
-                    }
+                    let biv = (BigInt(v1)<<32n) | BigInt(v2);
+                    let nv = Number(biv);
+                    // If number can be represented exactly as Number, use Number, else use BigInteger
+                    return biv == nv || options.bigint === false ? nv : biv;
                 } else {
                     throw new Error("Unknown integer type " + c);
                 }
