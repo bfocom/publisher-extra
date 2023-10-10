@@ -26,7 +26,7 @@ See Also: https://publisher.bfo.com/live/help/#_factur_x
   xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
   xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
   xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
-  html="http://www.w3.org/1999/xhtml">
+  xmlns="http://www.w3.org/1999/xhtml">
 
  <xsl:output indent="yes" method="xml" encoding="UTF-8" media-type="application/xml+xhtml"/>
  <xsl:decimal-format decimal-separator="." grouping-separator="," NaN="" />
